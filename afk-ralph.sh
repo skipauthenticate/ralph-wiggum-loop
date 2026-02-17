@@ -17,7 +17,7 @@ LOG_FILE="$WORK_DIR/ralph-log-$(date +%Y%m%d-%H%M%S).txt"
 
 cd "$WORK_DIR"
 
-for f in prd.md prompt.md northstar.md; do
+for f in prd.md prompt.md northstar.md features.json; do
   if [ ! -f "$f" ]; then
     echo "ERROR: $f not found in $(pwd)"
     exit 1
@@ -36,14 +36,14 @@ for ((i=1; i<=MAX_ITER; i++)); do
   result=$(CLAUDECODE="" claude \
     --permission-mode acceptEdits \
     -p \
-    "@northstar.md @prd.md @claude-progress.txt $(cat prompt.md)" \
+    "@northstar.md @prd.md @features.json @claude-progress.txt $(cat prompt.md)" \
     2>&1) || true
 
   echo "$result" >> "$LOG_FILE"
 
   if [[ "$result" == *"<promise>COMPLETE</promise>"* ]]; then
     echo "" | tee -a "$LOG_FILE"
-    echo "=== ALL TASKS COMPLETE after $i iterations ===" | tee -a "$LOG_FILE"
+    echo "=== ALL FEATURES COMPLETE after $i iterations ===" | tee -a "$LOG_FILE"
     echo "Finished: $(date)" | tee -a "$LOG_FILE"
     exit 0
   fi

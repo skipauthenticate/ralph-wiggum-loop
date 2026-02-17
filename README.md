@@ -1,6 +1,6 @@
 # Ralph Wiggum Loop
 
-Run [Claude Code](https://docs.anthropic.com/en/docs/claude-code) in an autonomous bash loop. Each iteration picks the next task from a checklist, implements it, runs all feedback loops, commits, and logs progress — then hands off cleanly to the next iteration.
+Run [Claude Code](https://docs.anthropic.com/en/docs/claude-code) in an autonomous bash loop. Each iteration picks the next feature from a JSON checklist, implements it, runs all feedback loops, commits, and logs progress — then hands off cleanly to the next iteration.
 
 Based on Anthropic's [harness guide for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) and the [Ralph Wiggum technique](https://www.aihero.dev/tips-for-ai-coding-with-ralph-wiggum).
 
@@ -9,11 +9,11 @@ Based on Anthropic's [harness guide for long-running agents](https://www.anthrop
 AI agents are like super-smart experts who forget everything between sessions. Rather than fighting this, Ralph embraces it — each session bootstraps context from structured artifacts the same way a new team member would:
 
 1. Read the progress log and recent git history
-2. Check the task board (PRD checklist)
-3. Pick one task, implement it, verify it, commit it
+2. Check the feature list (`features.json`)
+3. Pick one feature, implement it, verify every step, commit
 4. Log what was done for the next session
 
-Context carries over through files and git history, not conversation memory.
+The feature list uses **JSON instead of markdown checkboxes** — models are less likely to corrupt structured JSON than freeform text. Only the `passes` boolean flips from `false` to `true`.
 
 ## How It Works
 
@@ -22,18 +22,19 @@ ralph-once.sh / afk-ralph.sh
         │
         ├── reads prompt.md             ← instruction prompt
         ├── passes @northstar.md        ← vision & principles
-        ├── passes @prd.md              ← requirements + task checklist
+        ├── passes @prd.md              ← requirements & feedback loops
+        ├── passes @features.json       ← feature list (the task board)
         └── passes @claude-progress.txt ← prior work log
                 │
                 ▼
         Claude session starts:
          1. Reads progress + git log
          2. Runs existing tests (verify clean state)
-         3. Picks ONE task from checklist
-         4. Implements it fully
+         3. Picks first "passes": false feature
+         4. Walks through its steps array
          5. Runs all feedback loops (types, tests, lint)
          6. Commits only if all pass
-         7. Logs progress, exits
+         7. Sets "passes": true, logs progress, exits
 ```
 
 ## Prerequisites
@@ -55,7 +56,7 @@ cd ralph-wiggum-loop
 
 ```bash
 mkdir my-project
-cp northstar.md prd.md prompt.md init.sh my-project/
+cp northstar.md prd.md features.json prompt.md init.sh my-project/
 cd my-project && git init && cd ..
 ```
 
@@ -85,7 +86,7 @@ Build a CLI tool that converts CSV files to SQLite databases.
 - Never remove or weaken existing tests
 ```
 
-**`prd.md`** — Requirements, feedback loops, and task checklist:
+**`prd.md`** — Requirements and feedback loop definitions:
 
 ```markdown
 # PRD: csv2sqlite
@@ -97,32 +98,53 @@ CLI tool to convert CSV files to SQLite databases with type inference.
 - Tests: `pytest`
 - Lint: `ruff check`
 - Format: `ruff format --check`
-
-## Task Checklist
-
-### Phase 1: Setup
-- [ ] Create Python package with pyproject.toml and src layout
-  - Verify: `pip install -e .` succeeds
-- [ ] Add pytest config with coverage
-  - Verify: `pytest --cov` runs
-
-### Phase 2: Core
-- [ ] Implement CSV reader with type inference
-  - Verify: `pytest tests/test_reader.py` passes
-- [ ] Implement SQLite writer
-  - Verify: `pytest tests/test_writer.py` passes
-
-### Phase 3: Polish
-- [ ] Add CLI entry point with argparse
-  - Verify: `csv2sqlite sample.csv out.db` produces valid database
 ```
 
-**`prompt.md`** — The instruction prompt. The default works well — customize only if needed.
+**`features.json`** — The task board. Each feature has a category, description, verification steps, and a `passes` boolean:
 
-**`init.sh`** — Environment setup. Ralph reads this at the start of every session:
+```json
+[
+  {
+    "category": "setup",
+    "description": "Python package with pyproject.toml and src layout",
+    "steps": [
+      "Create pyproject.toml with project metadata",
+      "Create src/csv2sqlite/__init__.py",
+      "Verify: pip install -e . succeeds",
+      "Verify: python -c 'import csv2sqlite' works"
+    ],
+    "passes": false
+  },
+  {
+    "category": "core",
+    "description": "CSV reader with automatic type inference",
+    "steps": [
+      "Create src/csv2sqlite/reader.py with CsvReader class",
+      "Implement type inference for int, float, bool, str columns",
+      "Write tests in tests/test_reader.py",
+      "Verify: pytest tests/test_reader.py passes"
+    ],
+    "passes": false
+  },
+  {
+    "category": "polish",
+    "description": "CLI entry point with argparse and --help",
+    "steps": [
+      "Create src/csv2sqlite/cli.py with argument parser",
+      "Add [project.scripts] entry in pyproject.toml",
+      "Verify: csv2sqlite --help prints usage",
+      "Verify: csv2sqlite sample.csv out.db works"
+    ],
+    "passes": false
+  }
+]
+```
+
+**`prompt.md`** — The instruction prompt. The default works well out of the box.
+
+**`init.sh`** — Environment setup. Ralph reads this at every session start:
 
 ```bash
-# How to set up the dev environment
 source .venv/bin/activate
 pip install -e ".[dev]"
 ```
@@ -144,8 +166,14 @@ Watch the output. If it looks good, run again. Do **3–5 HITL iterations** to c
 ### 6. Check Progress
 
 ```bash
-cat my-project/claude-progress.txt    # what Ralph says it did
-git -C my-project log --oneline -10   # actual commits
+cat my-project/claude-progress.txt                         # what Ralph says it did
+git -C my-project log --oneline -10                        # actual commits
+python3 -c "
+import json
+features = json.load(open('my-project/features.json'))
+done = sum(1 for f in features if f['passes'])
+print(f'{done}/{len(features)} features complete')
+"
 ```
 
 ## File Reference
@@ -155,15 +183,40 @@ git -C my-project log --oneline -10   # actual commits
 | `ralph-once.sh` | Run one HITL iteration | You don't — just run it |
 | `afk-ralph.sh` | Run N autonomous iterations | You don't — just run it |
 | `northstar.md` | Vision, principles, quality bar | You (before starting) |
-| `prd.md` | Requirements + feedback loops + task checklist | You write tasks; Ralph checks them off |
+| `prd.md` | Requirements, architecture, feedback loops | You (before starting) |
+| `features.json` | Feature list with verification steps | You write features; Ralph flips `passes` to `true` |
 | `prompt.md` | Iteration prompt for Claude | You (tune if needed) |
 | `init.sh` | Environment setup instructions | You (optional) |
 | `claude-progress.txt` | Session-by-session log | Ralph appends; you read |
 | `ralph-guide.md` | Detailed usage guide | Reference |
 
+## The features.json Format
+
+```json
+{
+  "category": "core",
+  "description": "Human-readable summary of the feature",
+  "steps": [
+    "Implementation step 1",
+    "Implementation step 2",
+    "Verify: concrete command that proves it works"
+  ],
+  "passes": false
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `category` | string | `setup` / `core` / `integration` / `polish` |
+| `description` | string | What the feature does |
+| `steps` | string[] | Ordered implementation + verification checklist |
+| `passes` | boolean | `false` → `true` when all steps verified |
+
+**Rules:** Features are never removed, never reordered. Only `passes` changes.
+
 ## Feedback Loops
 
-Define these in your `prd.md`. Ralph runs them **before every commit** and refuses to commit if any fail.
+Define in `prd.md`. Ralph runs these **before every commit** and refuses to commit if any fail.
 
 | Loop | Catches | Example |
 |------|---------|---------|
@@ -172,22 +225,21 @@ Define these in your `prd.md`. Ralph runs them **before every commit** and refus
 | Linter | Code style, potential bugs | `ruff check` / `eslint` |
 | Formatter | Inconsistent formatting | `ruff format --check` / `prettier --check` |
 
-## Writing Good Tasks
+## Writing Good Features
 
-### Priority Order
+### Priority Order (when writing features.json)
 
-1. **Architectural decisions** and core abstractions
-2. **Integration points** between modules
-3. **Unknowns and spikes** — explore before committing
-4. **Standard features** and implementation
-5. **Polish, cleanup, quick wins**
+1. **setup** — scaffolding, dependencies, config
+2. **core** — architecture, abstractions, main functionality
+3. **integration** — wiring modules, end-to-end flows
+4. **polish** — CLI, docs, error handling, cleanup
 
 ### Sizing
 
-- **One concept per task** — if it takes multiple iterations, split it
-- **Ordered** — setup > core > integration > polish
-- **Verifiable** — every task has a `Verify:` line with a concrete command
-- **Independent** — later tasks shouldn't break earlier ones
+- **One concept per feature** — if it takes multiple iterations, split it
+- **Verifiable** — last step(s) should be concrete `Verify:` commands
+- **Ordered** — setup → core → integration → polish
+- **Independent** — later features shouldn't break earlier ones
 
 ## Alternative Loops
 
@@ -204,19 +256,20 @@ Ralph isn't just for feature backlogs. Swap the prompt for:
 
 | Problem | Add to prompt |
 |---------|---------------|
-| Tasks too big | "Break large tasks into sub-steps before implementing" |
+| Features too big | "Break large features into sub-steps before implementing" |
 | Skipping tests | "Run ALL feedback loops and show output before committing" |
-| Rewriting tasks | "ABSOLUTELY DO NOT modify task descriptions in prd.md" |
+| Editing features | "NEVER modify any field in features.json except passes" |
 | Going off-track | "Re-read northstar.md before starting any work" |
-| Premature done | "Verify end-to-end before marking complete" |
+| Premature done | "Walk through every step before marking passes: true" |
 | Removing tests | "It is UNACCEPTABLE to remove or edit existing tests" |
+| Corrupting JSON | "Validate features.json is valid JSON before committing" |
 
 ## Cost & Safety
 
 - Each iteration: **~$0.50–$2.00** (depends on context size)
-- **Always** set iteration limits for AFK runs — never infinite loops with stochastic systems
+- **Always** set iteration limits for AFK runs
 - Start with 3–5 HITL iterations to calibrate
-- Ralph commits after each task — use `git revert <hash>` to undo mistakes
+- Ralph commits after each feature — use `git revert <hash>` to undo mistakes
 - Permission mode is `acceptEdits` (file edits allowed, dangerous bash still gated)
 
 ## Recovery
@@ -227,6 +280,8 @@ git log --oneline -20            # actual commits
 git diff HEAD~3                  # review recent changes
 git revert <hash>                # undo a bad commit
 ```
+
+To un-complete a feature, set `"passes": true` back to `"passes": false` in features.json.
 
 ## Further Reading
 

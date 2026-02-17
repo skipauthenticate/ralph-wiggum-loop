@@ -3,9 +3,9 @@
 ## What Is It
 
 Ralph runs Claude Code in a bash loop. Each iteration: reads progress
-and the PRD, picks one task, implements it, runs all feedback loops,
-commits, logs what it did. The prompt stays the same — Claude sees its
-own prior work through files and git history.
+and the feature list, picks one feature, implements it, runs all feedback
+loops, commits, logs what it did. The prompt stays the same — Claude sees
+its own prior work through files and git history.
 
 Based on Anthropic's [harness guide for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) and the [Ralph Wiggum technique](https://www.aihero.dev/tips-for-ai-coding-with-ralph-wiggum).
 
@@ -13,17 +13,21 @@ Based on Anthropic's [harness guide for long-running agents](https://www.anthrop
 
 AI agents are like super-smart experts who forget everything between
 sessions. Context carries over through structured artifacts — progress
-files, task checklists, and git history — not conversation memory.
+files, feature lists, and git history — not conversation memory.
 Each session bootstraps understanding the same way a new team member
 would: read docs, check recent commits, review the task board.
+
+The feature list uses JSON instead of markdown checkboxes because models
+are less likely to corrupt structured JSON than freeform markdown.
 
 ## File Structure (per project)
 
 | File | Purpose | Who Edits It |
 |------|---------|--------------|
 | `northstar.md` | Vision, principles, quality bar | You (before starting) |
-| `prd.md` | Requirements + task checklist | You write it; Ralph checks off tasks |
-| `prompt.md` | Instruction prompt for Claude | You (tune as needed) |
+| `prd.md` | Requirements, architecture, feedback loops | You (before starting) |
+| `features.json` | Feature list with verification steps | You write it; Ralph flips `passes` to `true` |
+| `prompt.md` | Iteration prompt for Claude | You (tune as needed) |
 | `init.sh` | Environment setup instructions | You (optional) |
 | `claude-progress.txt` | Session log (what Ralph did) | Ralph appends; you read |
 
@@ -31,12 +35,13 @@ would: read docs, check recent commits, review the task board.
 
 1. Copy the templates into your project directory:
    ```bash
-   cp northstar.md prd.md prompt.md init.sh my-project/
+   cp northstar.md prd.md features.json prompt.md init.sh my-project/
    ```
 
 2. Edit the files for your project:
    - `northstar.md` — fill in your vision, principles, and quality bar
-   - `prd.md` — write requirements, define feedback loops, break work into tasks
+   - `prd.md` — write requirements, architecture, and define feedback loops
+   - `features.json` — define features with categories, steps, and verification
    - `prompt.md` — adjust the iteration prompt if needed (default works well)
    - `init.sh` — add env setup steps (dependency install, dev server, etc.)
 
@@ -44,6 +49,50 @@ would: read docs, check recent commits, review the task board.
    ```bash
    cd my-project && git init
    ```
+
+## The features.json Format
+
+Each feature is a JSON object:
+
+```json
+{
+  "category": "core",
+  "description": "CSV reader parses files with automatic type inference",
+  "steps": [
+    "Create src/reader.py with CsvReader class",
+    "Implement type inference for int, float, bool, str, date columns",
+    "Handle edge cases: empty cells, quoted strings, mixed types",
+    "Write tests in tests/test_reader.py with >90% coverage",
+    "Verify: pytest tests/test_reader.py passes"
+  ],
+  "passes": false
+}
+```
+
+### Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `category` | string | `setup`, `core`, `integration`, or `polish` |
+| `description` | string | Human-readable summary of the feature |
+| `steps` | string[] | Ordered implementation + verification steps |
+| `passes` | boolean | `false` initially; Ralph sets to `true` when verified |
+
+### Rules
+
+- Features are **never removed** from features.json
+- Features are **never reordered**
+- Only the `passes` field changes: `false` → `true`
+- To un-complete a feature, manually set `passes` back to `false`
+
+### Category Priority
+
+Features are worked in order of appearance, but when writing them, group by:
+
+1. **setup** — project scaffolding, dependencies, tooling
+2. **core** — architecture, abstractions, main functionality
+3. **integration** — wiring modules, end-to-end flows
+4. **polish** — CLI, docs, error handling, cleanup
 
 ## Running
 
@@ -54,7 +103,7 @@ would: read docs, check recent commits, review the task board.
 ```
 
 Watch the output. If it looks good, run again. Do 3–5 iterations
-before going AFK. This calibrates whether your tasks are the right
+before going AFK. This calibrates whether your features are the right
 size and your prompt is dialed in.
 
 ### AFK — Autonomous Loop
@@ -71,63 +120,106 @@ Logs saved to `ralph-log-YYYYMMDD-HHMMSS.txt`.
 - Start small (5–10 for small tasks, 30–50 for larger projects)
 - Monitor the first few iterations before walking away
 
-## Writing Good Tasks in prd.md
+## Writing Good Features
 
-### Prioritization Order
+### Sizing
 
-Write tasks in this priority:
-1. **Architectural decisions** and core abstractions
-2. **Integration points** between modules
-3. **Unknowns and spikes** — explore before committing to an approach
-4. **Standard features** and implementation
-5. **Polish, cleanup, quick wins**
+- **Small**: one logical concept per feature, completable in one session
+- **Verifiable**: last step should be a concrete command that proves it works
+- **Ordered**: setup → core → integration → polish
+- **Independent**: later features shouldn't break earlier ones
 
-### Task Sizing
+If a feature takes multiple iterations, it's too big — split it.
 
-- **Small**: one logical concept per task, completable in one session
-- **Verifiable**: every task has a `Verify:` line with a concrete command
-- **Ordered**: setup > core > integration > polish
-- **Independent**: later tasks shouldn't break earlier ones
+### Example features.json
 
-If you find a task takes multiple iterations, it's too big — split it.
-
-### Example
-
-```markdown
-### Phase 1: Setup
-- [ ] Create Python package with pyproject.toml and src layout
-  - Verify: `pip install -e .` succeeds and `python -c "import mypackage"` works
-- [ ] Add pytest config with coverage reporting
-  - Verify: `pytest --cov` runs and shows 0% coverage
-
-### Phase 2: Core
-- [ ] Implement CSV reader with automatic type inference
-  - Verify: `pytest tests/test_reader.py` passes with >90% coverage
-- [ ] Implement SQLite writer with table creation
-  - Verify: `pytest tests/test_writer.py` passes
-
-### Phase 3: Integration
-- [ ] Wire reader + writer together in a pipeline function
-  - Verify: `python -m mypackage sample.csv out.db && sqlite3 out.db ".tables"` shows table
-
-### Phase 4: Polish
-- [ ] Add CLI entry point with argparse and --help
-  - Verify: `csv2sqlite --help` prints usage and `csv2sqlite sample.csv out.db` works
+```json
+[
+  {
+    "category": "setup",
+    "description": "Python package with pyproject.toml and src layout",
+    "steps": [
+      "Create pyproject.toml with project metadata and dependencies",
+      "Create src/csv2sqlite/__init__.py with version string",
+      "Create src/csv2sqlite/py.typed marker file",
+      "Verify: pip install -e . succeeds",
+      "Verify: python -c 'import csv2sqlite' works"
+    ],
+    "passes": false
+  },
+  {
+    "category": "setup",
+    "description": "Pytest configuration with coverage reporting",
+    "steps": [
+      "Add pytest and pytest-cov to dev dependencies",
+      "Create pyproject.toml [tool.pytest] section with coverage config",
+      "Create tests/__init__.py and a placeholder test",
+      "Verify: pytest --cov runs and reports coverage"
+    ],
+    "passes": false
+  },
+  {
+    "category": "core",
+    "description": "CSV reader parses files with automatic type inference",
+    "steps": [
+      "Create src/csv2sqlite/reader.py with CsvReader class",
+      "Implement type inference for int, float, bool, str columns",
+      "Handle edge cases: empty cells, quoted strings, mixed types",
+      "Write tests in tests/test_reader.py covering all types",
+      "Verify: pytest tests/test_reader.py passes with >90% coverage"
+    ],
+    "passes": false
+  },
+  {
+    "category": "core",
+    "description": "SQLite writer creates tables and inserts rows",
+    "steps": [
+      "Create src/csv2sqlite/writer.py with SqliteWriter class",
+      "Generate CREATE TABLE from inferred column types",
+      "Batch INSERT rows with parameterized queries",
+      "Write tests in tests/test_writer.py",
+      "Verify: pytest tests/test_writer.py passes"
+    ],
+    "passes": false
+  },
+  {
+    "category": "integration",
+    "description": "Pipeline wires reader and writer into a single convert function",
+    "steps": [
+      "Create src/csv2sqlite/pipeline.py with convert() function",
+      "Wire CsvReader output into SqliteWriter input",
+      "Write integration test with a sample CSV file",
+      "Verify: pytest tests/test_pipeline.py passes",
+      "Verify: python -m csv2sqlite sample.csv out.db && sqlite3 out.db '.tables'"
+    ],
+    "passes": false
+  },
+  {
+    "category": "polish",
+    "description": "CLI entry point with argparse and --help",
+    "steps": [
+      "Create src/csv2sqlite/cli.py with argument parser",
+      "Add [project.scripts] entry in pyproject.toml",
+      "Handle errors gracefully with user-friendly messages",
+      "Verify: csv2sqlite --help prints usage",
+      "Verify: csv2sqlite sample.csv out.db produces valid database"
+    ],
+    "passes": false
+  }
+]
 ```
 
 ## Feedback Loops
 
-Define these in your `prd.md` and `northstar.md`. Ralph runs them
-before every commit.
+Define these in your `prd.md`. Ralph runs them **before every commit**
+and refuses to commit if any fail.
 
-| Loop Type | What It Catches | Example Command |
-|-----------|-----------------|-----------------|
-| Type checker | Type mismatches, missing props | `npm run typecheck` / `mypy` |
+| Loop | Catches | Example Command |
+|------|---------|-----------------|
+| Type checker | Type mismatches, missing props | `mypy` / `npm run typecheck` |
 | Tests | Broken logic, regressions | `pytest` / `npm run test` |
 | Linter | Code style, potential bugs | `ruff check` / `eslint` |
-| Formatter | Formatting inconsistencies | `ruff format --check` / `prettier --check` |
-
-Ralph will NOT commit if any loop fails. This is by design.
+| Formatter | Inconsistent formatting | `ruff format --check` / `prettier --check` |
 
 ### Pre-commit hooks (optional but recommended)
 
@@ -138,19 +230,19 @@ net — even if Ralph skips a feedback loop, the hook blocks the commit.
 
 Ralph isn't just for feature backlogs. Swap the prompt for:
 
-| Loop Type | Prompt Tweak | Use Case |
-|-----------|-------------|----------|
-| **Test Coverage** | "Find untested code, write tests, increase coverage by 5%" | Reaching a coverage target |
-| **Lint Cleanup** | "Fix one lint error at a time, run linter after each fix" | Cleaning up a messy codebase |
-| **Duplication** | "Run jscpd, extract one duplicate into a shared function" | Reducing copy-paste code |
-| **Entropy** | "Find one code smell or dead code, fix it, commit" | General codebase health |
+| Loop | What It Does |
+|------|-------------|
+| **Test Coverage** | "Find untested code, write tests, increase coverage by 5%" |
+| **Lint Cleanup** | "Fix one lint error, run linter, commit" |
+| **Duplication** | "Run jscpd, extract one duplicate into shared code" |
+| **Entropy** | "Find one code smell or dead code, fix it, commit" |
 
 ## Cost & Safety
 
 - Each iteration: **~$0.50–$2.00** depending on context size
 - ALWAYS set iteration limits for AFK runs
 - Start with 3–5 HITL iterations to calibrate
-- Ralph commits after each task — use `git revert` to undo mistakes
+- Ralph commits after each feature — use `git revert` to undo mistakes
 - Permission mode is `acceptEdits` (file edits allowed, dangerous bash still gated)
 
 ## Recovery
@@ -162,19 +254,23 @@ git diff HEAD~3                  # what changed
 git revert <hash>                # undo a bad commit
 ```
 
+To un-complete a feature, edit features.json and set `"passes": true`
+back to `"passes": false`.
+
 ## Tuning prompt.md
 
 If Ralph is misbehaving:
 
 | Problem | Add to prompt.md |
 |---------|-----------------|
-| Tasks too big | "Break large tasks into sub-steps before implementing" |
+| Tasks too big | "Break large features into sub-steps before implementing" |
 | Skipping tests | "Run ALL feedback loops and show output before committing" |
-| Rewriting tasks | "ABSOLUTELY DO NOT modify task descriptions in prd.md" |
+| Editing features | "NEVER modify any field in features.json except passes" |
 | Going off-track | "Re-read northstar.md before starting any work" |
-| Premature done | "Verify the task works end-to-end before marking complete" |
+| Premature done | "Walk through every step in the steps array before marking passes: true" |
 | Sloppy code | "This is a production codebase. Follow all standards in northstar.md" |
 | Removing tests | "It is UNACCEPTABLE to remove or edit existing tests" |
+| Corrupting JSON | "Validate features.json is valid JSON before committing" |
 
 ## Session Flow (What Ralph Actually Does)
 
@@ -186,13 +282,14 @@ If Ralph is misbehaving:
    ├── Read init.sh → set up environment
    └── Run existing tests (verify clean state)
 
-2. PICK TASK
-   └── First unchecked `- [ ]` in prd.md
+2. PICK FEATURE
+   └── First "passes": false in features.json
 
 3. IMPLEMENT
+   ├── Walk through steps array
    ├── Write code (not stubs)
    ├── Write tests
-   └── Test end-to-end
+   └── Verify every step
 
 4. FEEDBACK LOOPS
    ├── Type check → must pass
@@ -202,7 +299,7 @@ If Ralph is misbehaving:
 
 5. COMMIT
    ├── git commit with descriptive message
-   ├── Mark `- [x]` in prd.md
+   ├── Set "passes": true in features.json
    └── Append to claude-progress.txt
 
 6. EXIT

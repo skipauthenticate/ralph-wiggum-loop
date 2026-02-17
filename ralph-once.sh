@@ -10,7 +10,7 @@ WORK_DIR="/home/mindsage/workspace/mindsage-workspace/$PROJECT_DIR"
 cd "$WORK_DIR"
 
 # Validate required files
-for f in prd.md prompt.md northstar.md; do
+for f in prd.md prompt.md northstar.md features.json; do
   if [ ! -f "$f" ]; then
     echo "ERROR: $f not found in $(pwd)"
     echo "Create it first (see ralph-guide.md)"
@@ -27,7 +27,7 @@ echo "Started: $(date)"
 CLAUDECODE="" claude \
   --permission-mode acceptEdits \
   -p \
-  "@northstar.md @prd.md @claude-progress.txt $(cat prompt.md)"
+  "@northstar.md @prd.md @features.json @claude-progress.txt $(cat prompt.md)"
 
 echo ""
 echo "=== Ralph iteration complete ($(date)) ==="

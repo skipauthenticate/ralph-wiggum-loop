@@ -1,0 +1,52 @@
+[
+  {
+    "category": "setup",
+    "description": "Task description here",
+    "steps": [
+      "Step 1",
+      "Step 2",
+      "Verify: [how to confirm it works]"
+    ],
+    "passes": false
+  },
+  {
+    "category": "setup",
+    "description": "Task description here",
+    "steps": [
+      "Step 1",
+      "Step 2",
+      "Verify: [how to confirm it works]"
+    ],
+    "passes": false
+  },
+  {
+    "category": "core",
+    "description": "Task description here",
+    "steps": [
+      "Step 1",
+      "Step 2",
+      "Verify: [how to confirm it works]"
+    ],
+    "passes": false
+  },
+  {
+    "category": "integration",
+    "description": "Task description here",
+    "steps": [
+      "Step 1",
+      "Step 2",
+      "Verify: [how to confirm it works]"
+    ],
+    "passes": false
+  },
+  {
+    "category": "polish",
+    "description": "Task description here",
+    "steps": [
+      "Step 1",
+      "Step 2",
+      "Verify: [how to confirm it works]"
+    ],
+    "passes": false
+  }
+]

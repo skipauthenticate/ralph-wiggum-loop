@@ -11,45 +11,29 @@
 [Key technical decisions, dependencies, constraints]
 
 ## Feedback Loops
-[List the commands Ralph must run before committing]
+[Commands Ralph must run before every commit]
 - Types: `[e.g. npm run typecheck / mypy]`
 - Tests: `[e.g. pytest / npm run test]`
 - Lint: `[e.g. ruff check / npm run lint]`
 
----
+## Feature List
 
-## Task Checklist
+The task checklist lives in `features.json` — a JSON array of feature objects.
 
-Work through these in order. Check off (`[x]`) when complete.
+Each feature has:
+- `category`: setup | core | integration | polish
+- `description`: what the feature does (human-readable)
+- `steps`: ordered verification steps (last step should be the acceptance test)
+- `passes`: `false` initially, set to `true` only after all steps verified
 
-Rules:
-- DO NOT rewrite, reorder, or remove tasks
-- Only change `- [ ]` to `- [x]` for completed tasks
-- Each task has a Verify line — run it before checking off
+### Category Priority
+1. **setup** — project scaffolding, dependencies, config
+2. **core** — architectural decisions, core abstractions, main functionality
+3. **integration** — wiring modules together, end-to-end flows
+4. **polish** — CLI, docs, error handling, cleanup
 
-### Priority guidance
-1. Architectural decisions and core abstractions
-2. Integration points between modules
-3. Unknowns and spike work
-4. Standard features and implementation
-5. Polish, cleanup, quick wins
-
-### Phase 1: Setup
-- [ ] Task description
-  - Verify: `[command to confirm it works]`
-- [ ] Task description
-  - Verify: `[command to confirm it works]`
-
-### Phase 2: Core
-- [ ] Task description
-  - Verify: `[command to confirm it works]`
-- [ ] Task description
-  - Verify: `[command to confirm it works]`
-
-### Phase 3: Integration
-- [ ] Task description
-  - Verify: `[command to confirm it works]`
-
-### Phase 4: Polish
-- [ ] Task description
-  - Verify: `[command to confirm it works]`
+### Rules
+- Features are NEVER removed from features.json
+- Features are NEVER reordered
+- Only the `passes` field changes: `false` → `true`
+- Add notes to `claude-progress.txt`, not to features.json
