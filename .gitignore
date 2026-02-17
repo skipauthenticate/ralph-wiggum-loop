@@ -1,0 +1,13 @@
+# Ralph Wiggum Loop — ephemeral files
+ralph-log-*.txt
+claude-progress.txt
+
+# Subprojects (separate repos)
+mindsage/
+mindsage-frontend/
+
+# Claude Code internal
+.claude/
+
+# Misc
+graph.md
