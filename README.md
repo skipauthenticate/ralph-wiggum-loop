@@ -1,8 +1,19 @@
 # Ralph Wiggum Loop
 
-Run [Claude Code](https://docs.anthropic.com/en/docs/claude-code) in an autonomous bash loop. Each iteration picks the next task from a checklist, implements it, tests it, commits, and logs progress — then hands off cleanly to the next iteration.
+Run [Claude Code](https://docs.anthropic.com/en/docs/claude-code) in an autonomous bash loop. Each iteration picks the next task from a checklist, implements it, runs all feedback loops, commits, and logs progress — then hands off cleanly to the next iteration.
 
-Inspired by Anthropic's [harness guide for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents).
+Based on Anthropic's [harness guide for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) and the [Ralph Wiggum technique](https://www.aihero.dev/tips-for-ai-coding-with-ralph-wiggum).
+
+## Why This Works
+
+AI agents are like super-smart experts who forget everything between sessions. Rather than fighting this, Ralph embraces it — each session bootstraps context from structured artifacts the same way a new team member would:
+
+1. Read the progress log and recent git history
+2. Check the task board (PRD checklist)
+3. Pick one task, implement it, verify it, commit it
+4. Log what was done for the next session
+
+Context carries over through files and git history, not conversation memory.
 
 ## How It Works
 
@@ -15,13 +26,15 @@ ralph-once.sh / afk-ralph.sh
         └── passes @claude-progress.txt ← prior work log
                 │
                 ▼
-        Claude implements ONE task,
-        checks it off in prd.md,
-        logs to claude-progress.txt,
-        commits, exits.
+        Claude session starts:
+         1. Reads progress + git log
+         2. Runs existing tests (verify clean state)
+         3. Picks ONE task from checklist
+         4. Implements it fully
+         5. Runs all feedback loops (types, tests, lint)
+         6. Commits only if all pass
+         7. Logs progress, exits
 ```
-
-Each iteration is a fresh Claude session. Context carries over through files and git history, not conversation memory.
 
 ## Prerequisites
 
@@ -38,19 +51,17 @@ git clone https://github.com/skipauthenticate/ralph-wiggum-loop.git
 cd ralph-wiggum-loop
 ```
 
-### 2. Create Your Project Files
-
-Copy the templates into your project directory:
+### 2. Set Up Your Project
 
 ```bash
 mkdir my-project
 cp northstar.md prd.md prompt.md init.sh my-project/
-cd my-project
+cd my-project && git init && cd ..
 ```
 
 ### 3. Fill In the Templates
 
-**`northstar.md`** — Your project's vision and guiding principles:
+**`northstar.md`** — Vision, principles, and quality bar:
 
 ```markdown
 # Northstar
@@ -61,12 +72,20 @@ Build a CLI tool that converts CSV files to SQLite databases.
 ## Guiding Principles
 - Simple over clever — prefer readable code
 - Test everything — pytest coverage > 80%
+- Fight entropy — leave it better than you found it
 
 ## Non-Goals
 - No GUI, no web interface
+
+## Quality Bar
+### Repo Type: production
+### Standards
+- pytest coverage > 80%
+- All code must pass ruff check + ruff format
+- Never remove or weaken existing tests
 ```
 
-**`prd.md`** — Requirements and a task checklist. Tasks must use `- [ ]` checkboxes:
+**`prd.md`** — Requirements, feedback loops, and task checklist:
 
 ```markdown
 # PRD: csv2sqlite
@@ -74,12 +93,17 @@ Build a CLI tool that converts CSV files to SQLite databases.
 ## Overview
 CLI tool to convert CSV files to SQLite databases with type inference.
 
+## Feedback Loops
+- Tests: `pytest`
+- Lint: `ruff check`
+- Format: `ruff format --check`
+
 ## Task Checklist
 
 ### Phase 1: Setup
 - [ ] Create Python package with pyproject.toml and src layout
   - Verify: `pip install -e .` succeeds
-- [ ] Add pytest with coverage config
+- [ ] Add pytest config with coverage
   - Verify: `pytest --cov` runs
 
 ### Phase 2: Core
@@ -93,66 +117,105 @@ CLI tool to convert CSV files to SQLite databases with type inference.
   - Verify: `csv2sqlite sample.csv out.db` produces valid database
 ```
 
-**`prompt.md`** — The instruction prompt fed to Claude each iteration. The default works well out of the box. Customize if needed.
+**`prompt.md`** — The instruction prompt. The default works well — customize only if needed.
 
-### 4. Run
+**`init.sh`** — Environment setup. Ralph reads this at the start of every session:
 
-**Human-in-the-loop** (start here):
+```bash
+# How to set up the dev environment
+source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
+### 4. Run (HITL First)
 
 ```bash
 ./ralph-once.sh my-project
 ```
 
-Watch the output. If it looks good, run it again. Do 3–5 iterations before going AFK.
+Watch the output. If it looks good, run again. Do **3–5 HITL iterations** to calibrate before going AFK.
 
-**Autonomous** (AFK mode):
+### 5. Go AFK
 
 ```bash
 ./afk-ralph.sh 10 my-project      # 10 iterations, then stop
 ```
 
-### 5. Check Progress
+### 6. Check Progress
 
 ```bash
 cat my-project/claude-progress.txt    # what Ralph says it did
-git log --oneline -10                  # actual commits
+git -C my-project log --oneline -10   # actual commits
 ```
 
 ## File Reference
 
 | File | Purpose | Who Edits It |
 |------|---------|--------------|
-| `ralph-once.sh` | Run one iteration (HITL) | You don't — just run it |
-| `afk-ralph.sh` | Run N iterations (AFK) | You don't — just run it |
-| `northstar.md` | Vision, principles, non-goals | You (before starting) |
-| `prd.md` | Requirements + task checklist | You write it; Ralph checks off tasks |
-| `prompt.md` | Instruction prompt for Claude | You (tune as needed) |
-| `init.sh` | Environment setup notes | You (optional) |
-| `claude-progress.txt` | Session log | Ralph appends; you read |
+| `ralph-once.sh` | Run one HITL iteration | You don't — just run it |
+| `afk-ralph.sh` | Run N autonomous iterations | You don't — just run it |
+| `northstar.md` | Vision, principles, quality bar | You (before starting) |
+| `prd.md` | Requirements + feedback loops + task checklist | You write tasks; Ralph checks them off |
+| `prompt.md` | Iteration prompt for Claude | You (tune if needed) |
+| `init.sh` | Environment setup instructions | You (optional) |
+| `claude-progress.txt` | Session-by-session log | Ralph appends; you read |
 | `ralph-guide.md` | Detailed usage guide | Reference |
+
+## Feedback Loops
+
+Define these in your `prd.md`. Ralph runs them **before every commit** and refuses to commit if any fail.
+
+| Loop | Catches | Example |
+|------|---------|---------|
+| Type checker | Type mismatches, missing props | `mypy` / `npm run typecheck` |
+| Tests | Broken logic, regressions | `pytest` / `npm run test` |
+| Linter | Code style, potential bugs | `ruff check` / `eslint` |
+| Formatter | Inconsistent formatting | `ruff format --check` / `prettier --check` |
 
 ## Writing Good Tasks
 
-- **Small** — one concept per task, completable in one Claude session
-- **Ordered** — setup before core before integration before polish
+### Priority Order
+
+1. **Architectural decisions** and core abstractions
+2. **Integration points** between modules
+3. **Unknowns and spikes** — explore before committing
+4. **Standard features** and implementation
+5. **Polish, cleanup, quick wins**
+
+### Sizing
+
+- **One concept per task** — if it takes multiple iterations, split it
+- **Ordered** — setup > core > integration > polish
 - **Verifiable** — every task has a `Verify:` line with a concrete command
 - **Independent** — later tasks shouldn't break earlier ones
 
-## Tuning prompt.md
+## Alternative Loops
 
-If Ralph misbehaves, edit `prompt.md`:
+Ralph isn't just for feature backlogs. Swap the prompt for:
+
+| Loop | What It Does |
+|------|-------------|
+| **Test Coverage** | "Find untested code, write tests, increase coverage by 5%" |
+| **Lint Cleanup** | "Fix one lint error, run linter, commit" |
+| **Duplication** | "Run jscpd, extract one duplicate into shared code" |
+| **Entropy** | "Find one code smell or dead code, fix it, commit" |
+
+## Tuning prompt.md
 
 | Problem | Add to prompt |
 |---------|---------------|
 | Tasks too big | "Break large tasks into sub-steps before implementing" |
-| Skipping tests | "Run pytest and show output before committing" |
-| Rewriting tasks | "ABSOLUTELY DO NOT modify task descriptions" |
-| Going off-track | "Re-read northstar.md if unsure about direction" |
+| Skipping tests | "Run ALL feedback loops and show output before committing" |
+| Rewriting tasks | "ABSOLUTELY DO NOT modify task descriptions in prd.md" |
+| Going off-track | "Re-read northstar.md before starting any work" |
+| Premature done | "Verify end-to-end before marking complete" |
+| Removing tests | "It is UNACCEPTABLE to remove or edit existing tests" |
 
 ## Cost & Safety
 
-- Each iteration costs roughly **$0.50–$2.00** depending on context size
-- Always set iteration limits for AFK runs
+- Each iteration: **~$0.50–$2.00** (depends on context size)
+- **Always** set iteration limits for AFK runs — never infinite loops with stochastic systems
+- Start with 3–5 HITL iterations to calibrate
 - Ralph commits after each task — use `git revert <hash>` to undo mistakes
 - Permission mode is `acceptEdits` (file edits allowed, dangerous bash still gated)
 
@@ -160,10 +223,15 @@ If Ralph misbehaves, edit `prompt.md`:
 
 ```bash
 cat claude-progress.txt          # Ralph's own log
-git log --oneline -10            # actual commits
+git log --oneline -20            # actual commits
 git diff HEAD~3                  # review recent changes
 git revert <hash>                # undo a bad commit
 ```
+
+## Further Reading
+
+- [Anthropic: Effective Harnesses for Long-Running Agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)
+- [AI Hero: Tips for AI Coding with Ralph Wiggum](https://www.aihero.dev/tips-for-ai-coding-with-ralph-wiggum)
 
 ## License
 
