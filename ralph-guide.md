@@ -40,13 +40,14 @@ use `ralph.sh` at the documentation repo root. See `WORKFLOW.md` for the MindSag
 
 ```bash
 # From the documentation workspace root:
-./ralph.sh 03 backend          # HITL, one iteration
-./ralph.sh 03 backend 10       # AFK, 10 iterations
+./ralph.sh 03                  # HITL, one iteration
+./ralph.sh 03 10               # AFK, 10 iterations
 ./ralph.sh status              # progress overview
 ```
 
-`ralph.sh` automatically symlinks PRD files into the project directory and runs Claude there.
-No manual file copying needed.
+`ralph.sh` runs Claude from the feature directory. The `init.sh` in each feature
+tells Ralph where the code repos live. Ralph works across both backend and frontend
+automatically — no separate runs needed.
 
 ### Option B: PRD files alongside code (simpler for new projects)
 
@@ -124,11 +125,9 @@ Features are worked in order of appearance, but when writing them, group by:
 From the `mindsage-documentation/` root:
 
 ```bash
-./ralph.sh 03 backend           # HITL: Search & Knowledge, backend
-./ralph.sh 03 frontend          # HITL: Search & Knowledge, frontend
-./ralph.sh 05 backend 10        # AFK:  Data Ingestion, 10 iterations
+./ralph.sh 03                   # HITL: Search & Knowledge
+./ralph.sh 05 10                # AFK:  Data Ingestion, 10 iterations
 ./ralph.sh status               # Progress across all 9 feature areas
-./ralph.sh clean backend        # Remove symlinks from mindsage/
 ```
 
 ### Generic (PRD files alongside code)
@@ -301,11 +300,11 @@ If Ralph is misbehaving:
 
 ```
 1. STARTUP
-   ├── pwd
+   ├── pwd (feature PRD directory)
    ├── Read claude-progress.txt
-   ├── git log --oneline -20
-   ├── Read init.sh → set up environment
-   └── Run existing tests (verify clean state)
+   ├── Read init.sh → locate project directories
+   ├── git log --oneline -20 (in each project dir)
+   └── Run existing tests (in project dirs, verify clean state)
 
 2. PICK FEATURE
    └── First "passes": false in features.json
