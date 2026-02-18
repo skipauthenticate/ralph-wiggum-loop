@@ -33,6 +33,23 @@ are less likely to corrupt structured JSON than freeform markdown.
 
 ## Setup
 
+### Option A: Separate documentation repo (recommended for existing projects)
+
+If your code lives in one repo and your PRDs live in a documentation repo (like MindSage),
+use `ralph.sh` at the documentation repo root. See `WORKFLOW.md` for the MindSage-specific workflow.
+
+```bash
+# From the documentation workspace root:
+./ralph.sh 03 backend          # HITL, one iteration
+./ralph.sh 03 backend 10       # AFK, 10 iterations
+./ralph.sh status              # progress overview
+```
+
+`ralph.sh` automatically symlinks PRD files into the project directory and runs Claude there.
+No manual file copying needed.
+
+### Option B: PRD files alongside code (simpler for new projects)
+
 1. Copy the templates into your project directory:
    ```bash
    cp northstar.md prd.md features.json prompt.md init.sh my-project/
@@ -48,6 +65,12 @@ are less likely to corrupt structured JSON than freeform markdown.
 3. Initialize a git repo in your project if one doesn't exist:
    ```bash
    cd my-project && git init
+   ```
+
+4. Run with the generic scripts:
+   ```bash
+   ./ralph-once.sh /path/to/my-project
+   ./afk-ralph.sh 10 /path/to/my-project
    ```
 
 ## The features.json Format
@@ -96,21 +119,23 @@ Features are worked in order of appearance, but when writing them, group by:
 
 ## Running
 
-### HITL — Human-in-the-Loop (Start Here)
+### MindSage (documentation workspace)
+
+From the `mindsage-documentation/` root:
 
 ```bash
-./ralph-once.sh my-project
+./ralph.sh 03 backend           # HITL: Search & Knowledge, backend
+./ralph.sh 03 frontend          # HITL: Search & Knowledge, frontend
+./ralph.sh 05 backend 10        # AFK:  Data Ingestion, 10 iterations
+./ralph.sh status               # Progress across all 9 feature areas
+./ralph.sh clean backend        # Remove symlinks from mindsage/
 ```
 
-Watch the output. If it looks good, run again. Do 3–5 iterations
-before going AFK. This calibrates whether your features are the right
-size and your prompt is dialed in.
-
-### AFK — Autonomous Loop
+### Generic (PRD files alongside code)
 
 ```bash
-./afk-ralph.sh 10 my-project      # 10 iterations
-./afk-ralph.sh 5                   # 5 iterations at workspace root
+./ralph-once.sh /path/to/project        # HITL, one iteration
+./afk-ralph.sh 10 /path/to/project      # AFK, 10 iterations
 ```
 
 Logs saved to `ralph-log-YYYYMMDD-HHMMSS.txt`.
